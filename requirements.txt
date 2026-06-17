@@ -4,3 +4,6 @@ Flask-SQLAlchemy
 cryptography
 SpeechRecognition
 pydub
+pandas
+numpy
+scikit-learn
