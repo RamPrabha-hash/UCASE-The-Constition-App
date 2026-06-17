@@ -1,27 +1,27 @@
 import os
-import io
 import random
 from datetime import datetime
-from pydub import AudioSegment
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 
 from models import db, User, ChatHistory, UserProgress, KnowledgeBase, QuizQuestion
-from security import encrypt_data, decrypt_data, hash_password, verify_password, validate_aadhaar_format
+from security import encrypt_data, hash_password, validate_aadhaar_format
 from nlp_engine import nlp, detect_language
 
-
 # -----------------------------
-# FLASK APP INIT (ONLY ONCE)
+# APP CONFIG
 # -----------------------------
 app = Flask(__name__)
 app.secret_key = "ucase_super_secret_key"
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///ucase.db'
+
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+    "DATABASE_URL",
+    "sqlite:///ucase.db"
+)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
-
 
 # -----------------------------
 # TEMP OTP STORE
@@ -31,15 +31,14 @@ otp_store = {}
 def generate_otp():
     return str(random.randint(100000, 999999))
 
-
 # -----------------------------
-# FRONTEND PAGES
+# FRONTEND ROUTES
 # -----------------------------
 @app.route("/")
 def login_page():
     return render_template("login.html")
 
-@app.route("/chat")
+@app.route("/chat", methods=["GET"])
 def chat_page():
     if "user_id" not in session:
         return redirect(url_for("login_page"))
@@ -50,13 +49,13 @@ def logout():
     session.clear()
     return redirect(url_for("login_page"))
 
-
 # -----------------------------
-# AUTH: REGISTER
+# AUTH APIs
 # -----------------------------
 @app.route("/register", methods=["POST"])
 def register():
     data = request.json
+
     mobile = data.get("mobile")
     password = data.get("password")
     aadhaar = data.get("aadhaar", "")
@@ -64,7 +63,7 @@ def register():
     address = data.get("address", "")
 
     if not mobile or not password or not aadhaar:
-        return jsonify(success=False, msg="Required fields missing")
+        return jsonify(success=False, msg="Missing required fields")
 
     if not validate_aadhaar_format(aadhaar):
         return jsonify(success=False, msg="Invalid Aadhaar format")
@@ -72,7 +71,7 @@ def register():
     if User.query.filter_by(mobile=mobile).first():
         return jsonify(success=False, msg="User already exists")
 
-    new_user = User(
+    user = User(
         mobile=mobile,
         password=hash_password(password),
         aadhaar_encrypted=encrypt_data(aadhaar),
@@ -80,18 +79,15 @@ def register():
         address=address
     )
 
-    db.session.add(new_user)
+    db.session.add(user)
     db.session.commit()
 
-    db.session.add(UserProgress(user_id=new_user.id))
+    progress = UserProgress(user_id=user.id)
+    db.session.add(progress)
     db.session.commit()
 
     return jsonify(success=True, msg="Registered successfully")
 
-
-# -----------------------------
-# OTP LOGIN
-# -----------------------------
 @app.route("/request-otp", methods=["POST"])
 def request_otp():
     mobile = request.json.get("mobile")
@@ -109,15 +105,16 @@ def request_otp():
         )
         db.session.add(user)
         db.session.commit()
+
         db.session.add(UserProgress(user_id=user.id))
         db.session.commit()
 
     otp = generate_otp()
     otp_store[mobile] = otp
-    print(f"OTP for {mobile}: {otp}")
+
+    print(f"OTP for {mobile}: {otp}")  # for testing only
 
     return jsonify(success=True, msg="OTP sent")
-
 
 @app.route("/verify-otp", methods=["POST"])
 def verify_otp():
@@ -130,13 +127,12 @@ def verify_otp():
         if user:
             session["user_id"] = user.id
             otp_store.pop(mobile, None)
-            return jsonify(success=True, msg="Logged in")
+            return jsonify(success=True, msg="Login successful")
 
     return jsonify(success=False, msg="Invalid OTP")
 
-
 # -----------------------------
-# CHATBOT API
+# CHAT API (NLP)
 # -----------------------------
 @app.route("/api/chat", methods=["POST"])
 def api_chat():
@@ -157,9 +153,7 @@ def api_chat():
 
     reply = nlp.generate_reply(user_msg, lang, state)
 
-    if state["stage"] == "start":
-        state["stage"] = "responding"
-
+    state["stage"] = "responding"
     session.modified = True
 
     db.session.add(ChatHistory(
@@ -170,74 +164,72 @@ def api_chat():
     ))
 
     if user_id:
-        up = UserProgress.query.filter_by(user_id=user_id).first()
-        if up:
-            up.chatbot_usage_count += 1
+        prog = UserProgress.query.filter_by(user_id=user_id).first()
+        if prog:
+            prog.chatbot_usage_count += 1
 
     db.session.commit()
 
     return jsonify({"reply": reply})
-
-
-# -----------------------------
-# AUDIO CHAT (SIMPLIFIED - NO SPEECH LIB)
-# -----------------------------
-@app.route("/api/chat_audio", methods=["POST"])
-def api_chat_audio():
-    return jsonify({"error": "Speech feature removed for deployment stability"})
-
 
 # -----------------------------
 # KNOWLEDGE BASE
 # -----------------------------
 @app.route("/api/constitution", methods=["GET"])
 def get_constitution_data():
-    kb_items = KnowledgeBase.query.all()
+    items = KnowledgeBase.query.all()
 
     return jsonify({
         "success": True,
         "data": [
             {
-                "id": k.id,
-                "category": k.category,
-                "title": k.title,
-                "description": k.description
-            }
-            for k in kb_items
+                "id": i.id,
+                "category": i.category,
+                "title": i.title,
+                "description": i.description
+            } for i in items
         ]
     })
 
-
 @app.route("/api/search")
-def search_knowledge_base():
-    query = request.args.get("q", "").lower()
+def search():
+    q = request.args.get("q", "").lower()
 
-    if not query:
-        return jsonify({"success": False})
+    if not q:
+        return jsonify(success=False, msg="Query required")
 
     results = KnowledgeBase.query.filter(
-        KnowledgeBase.title.ilike(f"%{query}%") |
-        KnowledgeBase.description.ilike(f"%{query}%") |
-        KnowledgeBase.keywords.ilike(f"%{query}%")
+        (KnowledgeBase.title.ilike(f"%{q}%")) |
+        (KnowledgeBase.description.ilike(f"%{q}%")) |
+        (KnowledgeBase.keywords.ilike(f"%{q}%"))
     ).all()
+
+    user_id = session.get("user_id")
+    if user_id:
+        prog = UserProgress.query.filter_by(user_id=user_id).first()
+        if prog:
+            prog.articles_viewed += 1
+            db.session.commit()
 
     return jsonify({
         "success": True,
-        "data": [{"id": r.id, "title": r.title, "description": r.description} for r in results]
+        "data": [
+            {"id": r.id, "title": r.title, "description": r.description}
+            for r in results
+        ]
     })
 
-
 # -----------------------------
-# QUIZ
+# QUIZ SYSTEM
 # -----------------------------
 @app.route("/api/quiz/get")
 def get_quiz():
-    questions = QuizQuestion.query.all()
+    qs = QuizQuestion.query.all()
 
-    if not questions:
-        return jsonify({"success": False})
+    if not qs:
+        return jsonify(success=False, msg="No quizzes")
 
-    selected = random.sample(questions, min(2, len(questions)))
+    selected = random.sample(qs, min(2, len(qs)))
 
     return jsonify({
         "success": True,
@@ -247,16 +239,14 @@ def get_quiz():
                 "question": q.question,
                 "options": q.get_options(),
                 "type": q.type
-            }
-            for q in selected
+            } for q in selected
         ]
     })
-
 
 @app.route("/api/quiz/submit", methods=["POST"])
 def submit_quiz():
     if "user_id" not in session:
-        return jsonify({"success": False})
+        return jsonify(success=False, msg="Login required")
 
     answers = request.json.get("answers", {})
 
@@ -265,7 +255,6 @@ def submit_quiz():
 
     for qid, ans in answers.items():
         q = QuizQuestion.query.get(qid)
-
         if q:
             correct = q.correct_answer.strip().lower() == ans.strip().lower()
             if correct:
@@ -277,39 +266,41 @@ def submit_quiz():
                 "explanation": q.explanation
             })
 
-    up = UserProgress.query.filter_by(user_id=session["user_id"]).first()
-    if up:
-        up.quiz_score += score
-        up.topics_completed += 1
+    prog = UserProgress.query.filter_by(user_id=session["user_id"]).first()
+    if prog:
+        prog.quiz_score += score
+        prog.topics_completed += 1
         db.session.commit()
 
-    return jsonify({"success": True, "score": score, "feedback": feedback})
-
+    return jsonify({
+        "success": True,
+        "score_earned": score,
+        "feedback": feedback
+    })
 
 # -----------------------------
 # PROGRESS
 # -----------------------------
 @app.route("/api/progress")
-def get_progress():
+def progress():
     if "user_id" not in session:
-        return jsonify({"success": False})
+        return jsonify(success=False, msg="Not logged in")
 
-    up = UserProgress.query.filter_by(user_id=session["user_id"]).first()
+    p = UserProgress.query.filter_by(user_id=session["user_id"]).first()
 
-    if not up:
-        return jsonify({"success": False})
+    if not p:
+        return jsonify(success=False, msg="No data")
 
     return jsonify({
         "success": True,
-        "articles_viewed": up.articles_viewed,
-        "topics_completed": up.topics_completed,
-        "chatbot_usage_count": up.chatbot_usage_count,
-        "quiz_score": up.quiz_score
+        "articles_viewed": p.articles_viewed,
+        "topics_completed": p.topics_completed,
+        "chatbot_usage_count": p.chatbot_usage_count,
+        "quiz_score": p.quiz_score
     })
 
-
 # -----------------------------
-# RUN (RENDER USES GUNICORN)
+# MAIN (RENDER ENTRY)
 # -----------------------------
 if __name__ == "__main__":
-    app.run()
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
