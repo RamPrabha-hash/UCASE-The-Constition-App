@@ -1,5 +1,6 @@
 torch
 transformers
+sentence-transformers
 scikit-learn
 pandas
 numpy
@@ -8,3 +9,7 @@ tqdm
 Flask-SQLAlchemy
 cryptography
 openpyxl
+
+SpeechRecognition
+pydub
+tf-keras
