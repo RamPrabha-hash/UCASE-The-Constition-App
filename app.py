@@ -1,9 +1,6 @@
 import os
-import io
 import random
 from datetime import datetime
-import speech_recognition as sr
-from pydub import AudioSegment
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
@@ -180,64 +177,6 @@ def api_chat():
 
     return jsonify({"reply": reply})
 
-@app.route("/api/chat_audio", methods=["POST"])
-def api_chat_audio():
-    if "audio_data" not in request.files:
-        return jsonify({"error": "No audio sent"})
-
-    audio_file = request.files["audio_data"]
-
-    try:
-        # Pydub can read generically if ffmpeg is around.
-        audio = AudioSegment.from_file(audio_file)
-        wav_io = io.BytesIO()
-        audio.export(wav_io, format="wav")
-        wav_io.seek(0)
-
-        recognizer = sr.Recognizer()
-        with sr.AudioFile(wav_io) as source:
-            audio_data = recognizer.record(source)
-            # Default to en-IN. Extremely accurate for Tanglish, Hinglish, & English.
-            user_msg = recognizer.recognize_google(audio_data, language="en-IN")
-            print("Transcribed Voice:", user_msg)
-
-    except Exception as e:
-        print("Audio STT Error:", str(e))
-        return jsonify({"error": "Failed to decode speech. Make sure you speak clearly."})
-
-    user_id = session.get("user_id")
-
-    if "ucase_state" not in session:
-        lang = detect_language(user_msg)
-        session["ucase_state"] = {"stage": "start", "lang": lang}
-    else:
-        lang = session["ucase_state"]["lang"]
-
-    state = session["ucase_state"]
-
-    reply = nlp.generate_reply(user_msg, lang, state)
-
-    if state["stage"] == "start":
-        state["stage"] = "responding"
-
-    session.modified = True
-
-    chat_log = ChatHistory(
-        user_id=user_id,
-        message=f"[VOICE] {user_msg}",
-        reply=reply,
-        language=lang
-    )
-    db.session.add(chat_log)
-
-    if user_id:
-        up = UserProgress.query.filter_by(user_id=user_id).first()
-        if up:
-            up.chatbot_usage_count += 1
-
-    db.session.commit()
-
-    return jsonify({"reply": reply})
 
 # -----------------------------
 # API: CONSTITUTION & KNOWLEDGE BASE
