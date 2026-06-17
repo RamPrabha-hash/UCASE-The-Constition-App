@@ -1,3 +1,6 @@
 Flask
 gunicorn
 Flask-SQLAlchemy
+cryptography
+SpeechRecognition
+pydub
