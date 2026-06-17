@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>UCASE | Login</title>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+</head>
+
+<body>
+
+    <!-- DARK OVERLAY -->
+    <div class="overlay"></div>
+
+    <!-- LOGIN CARD -->
+    <div class="login-card">
+    <h1>UCASE</h1>
+    <p class="tagline">AI-powered Indian Law Assistant</p>
+
+    <input type="text" id="mobile" placeholder="Mobile Number">
+
+    <input type="password" id="password" placeholder="Password">
+
+    <!-- Aadhaar (registration only) -->
+    <input type="text" id="aadhaar" placeholder="Aadhaar Number (12 digits)">
+
+    <!-- OTP (hidden initially) -->
+    <input type="text" id="otp" placeholder="Enter OTP" style="display:none;">
+
+    
+
+<div class="btn-group">
+    <button id="requestBtn" onclick="requestOTP()">Request OTP</button>
+    <button id="verifyBtn" onclick="verifyOTP()" style="display:none;">
+        Verify OTP & Login
+    </button>
+</div>
+
+
+
+    <p class="note">
+        Your data is encrypted and protected under Indian IT laws.
+    </p>
+</div>
+
+
+    <!-- JS -->
+    <script src="{{ url_for('static', filename='js/login.js') }}"></script>
+
+</body>
+</html>

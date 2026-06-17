@@ -1,0 +1,99 @@
+/* RESET */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Segoe UI", sans-serif;
+}
+
+/* BODY BACKGROUND */
+body {
+    height: 100vh;
+    background: url("../images/indian_law_bg.jpg") no-repeat center center/cover;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* DARK OVERLAY */
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 1;
+}
+
+/* LOGIN CARD */
+.login-card {
+    position: relative;
+    z-index: 2;
+    width: 360px;
+    padding: 35px;
+    background: rgba(15, 23, 42, 0.9);
+    border-radius: 14px;
+    text-align: center;
+    color: #fff;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.7);
+}
+
+/* TITLE */
+.login-card h1 {
+    font-size: 32px;
+    margin-bottom: 8px;
+}
+
+/* TAGLINE */
+.tagline {
+    font-size: 14px;
+    color: #cbd5f5;
+    margin-bottom: 25px;
+}
+
+/* INPUTS */
+.login-card input {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    border: none;
+    outline: none;
+    font-size: 14px;
+}
+
+/* BUTTON */
+.login-card button {
+    width: 100%;
+    padding: 12px;
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.login-card button:hover {
+    background: #1d4ed8;
+}
+
+/* NOTE */
+.note {
+    margin-top: 15px;
+    font-size: 12px;
+    color: #94a3b8;
+}
+.btn-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;   /* 👈 PERFECT spacing */
+    margin-top: 10px;
+}
+.btn-group button:first-child {
+    background: #1e3a8a;
+}
+
+.btn-group button:last-child {
+    background: #2563eb;
+}
+
