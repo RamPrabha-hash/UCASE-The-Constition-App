@@ -13,3 +13,4 @@ openpyxl
 SpeechRecognition
 pydub
 tf-keras
+gunicorn
